@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encrypted CSV Editor (Offline)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        label,
+        input,
+        button {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 5px 0;
+        }
+
+        input[type="file"] {
+            padding: 6px 0;
+        }
+
+        button {
+            padding: 10px;
+            font-size: 1em;
+        }
+
+        #tableContainer {
+            max-height: 400px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 600px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 6px;
+            text-align: left;
+        }
+
+        td {
+            outline: none;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-row button {
+            flex: 1 1 auto;
+        }
+
+        @media (min-width: 600px) {
+
+            label,
+            input[type="file"],
+            button {
+                width: auto;
+                display: inline-block;
+                margin-right: 10px;
+                vertical-align: middle;
+            }
+
+            .button-row {
+                justify-content: flex-start;
+            }
+
+            .button-row button {
+                flex: none;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        .full-width-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        td {
+            outline: none;
+            min-height: 40px;
+            height: 2.5em;
+        }
+    </style>
+</head>
+
+
+<body>
+    <h2>🔐 Encrypted CSV Editor (Offline)</h2>
+
+    <div class="form-group">
+        <label for="passwordInput">Password:</label>
+        <input type="password" id="passwordInput" class="full-width-input">
+    </div>
+
+
+    <label>Load Existing Encrypted File:
+        <input type="file" id="fileInput" accept=".enc" class="full-width-input">
+        <button onclick="loadFile()">📂 Load</button>
+    </label><br>
+
+   <textarea id="text" name="text" rows="10" cols="50" required></textarea>
+
+    <div class="button-row">
+        <button onclick="saveFile()">💾 Save Encrypted File</button>
+    </div>
+
+    <div id="error" style="color:red;"></div>
+    <button onclick="runEncryptionTests()">🧪 Run All Tests</button>
+    <div id="testResult" style="margin-top:10px; font-weight: bold; white-space: pre-line;"></div>
+
+    <script>
+        async function deriveKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await window.crypto.subtle.importKey(
+                "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            return window.crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                false,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        async function loadFile() {
+            const file = document.getElementById("fileInput").files[0];
+            const password = document.getElementById("passwordInput").value;
+            if (!file || !password) return alert("File and password are required");
+
+            const buffer = await file.arrayBuffer();
+            const salt = new Uint8Array(buffer.slice(0, 16));
+            const iv = new Uint8Array(buffer.slice(16, 28));
+            const encrypted = buffer.slice(28);
+
+            try {
+                const key = await deriveKey(password, salt);
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv }, key, encrypted
+                );
+                const decryptedText = new TextDecoder().decode(decrypted);
+                document.getElementById("text").value = decryptedText;
+                document.getElementById("error").textContent = "";
+            } catch (e) {
+                document.getElementById("error").textContent = "❌ Decryption failed. Wrong password or corrupt file.";
+            }
+        }
+
+        async function saveFile() {
+            const password = document.getElementById("passwordInput").value;
+            if (!password) return alert("Password is required");
+
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await deriveKey(password, salt);
+            const csv = document.getElementById("text").value;
+            const encoded = new TextEncoder().encode(csv);
+            const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+
+            const fullBlob = new Uint8Array([...salt, ...iv, ...new Uint8Array(encrypted)]);
+            const blob = new Blob([fullBlob]);
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "encrypted.txt.enc";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+
+    <script type="text/javascript" src="tests/encryptionTest.js">
+    </script>
+    <script type="text/javascript" src="tests/modifyRowTest.js">
+    </script>
+</body>
+
+</html>
