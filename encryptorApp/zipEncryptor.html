@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZipVault - Encrypted Archive Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0f172a;
+            --secondary: #1e293b;
+            --accent: #0ea5e9;
+            --accent-dark: #0284c7;
+            --text: #f1f5f9;
+            --text-muted: #cbd5e1;
+            --border: #334155;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --radius: 8px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, #0f0f1e 100%);
+            color: var(--text);
+            line-height: 1.6;
+            height: 100dvh;
+            height: 100vh; /* fallback */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: var(--secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-badge {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .header-info {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        /* Main Container */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr;
+            flex: 1;
+            min-height: 0; /* allow shrinking inside flex parent */
+            gap: 0;
+        }
+
+        /* Left Panel */
+        .left-panel {
+            background: var(--secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            padding: 1rem 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            padding: 0;
+            background: var(--primary);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab:hover {
+            background: rgba(14, 165, 233, 0.05);
+            color: var(--accent);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* File Upload Section */
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(14, 165, 233, 0.03);
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent);
+            background: rgba(14, 165, 233, 0.08);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: rgba(14, 165, 233, 0.15);
+        }
+
+        .upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-text {
+            color: var(--text);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-subtext {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* File List */
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            padding: 0.75rem;
+            background: var(--primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-item:hover {
+            background: rgba(14, 165, 233, 0.1);
+            border-color: var(--accent);
+        }
+
+        .file-item.selected {
+            background: rgba(14, 165, 233, 0.15);
+            border-color: var(--accent);
+        }
+
+        .file-item-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-item-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .file-item-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.875rem;
+        }
+
+        .file-item-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .file-item-remove {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            padding: 0.25rem;
+            font-size: 1rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-item-remove {
+            opacity: 1;
+        }
+
+        /* Tree Explorer */
+        .tree-explorer {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tree-node {
+            user-select: none;
+        }
+
+        .tree-toggle {
+            background: none;
+            border: none;
+            color: var(--accent);
+            cursor: pointer;
+            padding: 0;
+            font-size: 0.875rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .tree-label {
+            padding: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+            font-size: 0.875rem;
+        }
+
+        .tree-label:hover {
+            background: rgba(14, 165, 233, 0.1);
+        }
+
+        .tree-label.selected {
+            background: rgba(14, 165, 233, 0.15);
+            color: var(--accent);
+        }
+
+        .tree-children {
+            margin-left: 1rem;
+            display: none;
+        }
+
+        .tree-children.open {
+            display: block;
+        }
+
+        .tree-icon {
+            font-size: 1rem;
+            width: 20px;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            background: var(--primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-header {
+            background: var(--secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-title {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .editor-filename {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .unsaved-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--warning);
+            border-radius: 50%;
+        }
+
+        /* Editor */
+        .editor-area {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-view {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-view.hidden {
+            display: none;
+        }
+
+        textarea.editor {
+            flex: 1;
+            background: var(--primary);
+            color: var(--text);
+            border: none;
+            padding: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            tab-size: 4;
+        }
+
+        .code-preview {
+            flex: 1;
+            overflow: auto;
+            padding: 1.5rem;
+            background: var(--primary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .code-preview code {
+            color: var(--text);
+        }
+
+        .html-preview {
+            flex: 1;
+            overflow: auto;
+            padding: 1.5rem;
+            background: white;
+            color: black;
+            border-radius: 4px;
+        }
+
+        .html-preview iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Buttons */
+        button {
+            border: none;
+            border-radius: var(--radius);
+            padding: 0.75rem 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn:hover {
+            background: var(--accent-dark);
+            box-shadow: var(--shadow);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            border-color: var(--accent);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        /* Input Fields */
+        input[type="text"],
+        input[type="password"],
+        textarea {
+            background: var(--secondary);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--secondary);
+            border-radius: var(--radius);
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-actions button {
+            flex: 1;
+        }
+
+        /* Hidden Input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: slideDown 0.3s ease;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .alert-close {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                position: relative;
+            }
+
+            /* Left panel slides in from left as an overlay */
+            .left-panel {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 85vw;
+                max-width: 360px;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            }
+
+            .left-panel.mobile-active {
+                transform: translateX(0);
+            }
+
+            /* Overlay backdrop */
+            .mobile-backdrop {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.55);
+                z-index: 199;
+            }
+
+            .mobile-backdrop.active {
+                display: block;
+            }
+
+            .right-panel {
+                grid-column: 1;
+            }
+
+            /* Hamburger button visible on mobile */
+            .mobile-menu-btn {
+                display: flex !important;
+            }
+
+            /* Tighten status bar on small screens */
+            .status-info {
+                gap: 1rem;
+            }
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background: var(--secondary);
+            border-top: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .status-info {
+            display: flex;
+            gap: 2rem;
+        }
+
+        /* Button Group */
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .button-group button {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+        }
+
+        /* Mobile menu button — hidden on desktop */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            line-height: 1;
+        }
+
+        .mobile-menu-btn:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* Close button inside the panel on mobile */
+        .panel-close-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+            line-height: 1;
+            margin-left: auto;
+        }
+
+        .panel-close-btn:hover {
+            color: var(--text);
+        }
+
+        @media (max-width: 1024px) {
+            .panel-close-btn {
+                display: flex;
+            }
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+            <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu">☰</button>
+            <h1>🔐 ZipVault</h1>
+        </div>
+        <div class="header-info">
+            <span id="status-text">Ready</span>
+            <span style="margin-left:1rem;opacity:0.4;font-size:0.75rem;">Created with Claude</span>
+        </div>
+    </div>
+
+    <!-- Mobile backdrop -->
+    <div class="mobile-backdrop" id="mobile-backdrop"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="left-panel" id="left-panel">
+            <div class="tabs">
+                <button class="tab active" data-tab="create">Create</button>
+                <button class="tab" data-tab="import">Import</button>
+                <button class="tab" data-tab="explorer">Explorer</button>
+                <button class="panel-close-btn" id="panel-close-btn" aria-label="Close menu">✕</button>
+            </div>
+
+            <!-- Create Tab -->
+            <div class="tab-content active" id="tab-create">
+                <div class="upload-area" id="create-upload-area">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Click to select files</div>
+                    <div class="upload-subtext">or drag and drop</div>
+                </div>
+                <input type="file" id="create-file-input" multiple>
+
+                <div style="margin-top: 1rem;">
+                    <div class="panel-title">Selected Files</div>
+                    <div class="file-list" id="create-file-list"></div>
+                </div>
+
+                <div style="margin-top: auto; padding-top: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Archive Password</label>
+                        <input type="password" id="create-password" placeholder="Enter a strong password">
+                    </div>
+                    <button class="btn" style="width: 100%;" id="create-btn">
+                        🔒 Create ZIP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Import Tab -->
+            <div class="tab-content" id="tab-import">
+                <div class="upload-area" id="import-upload-area">
+                    <div class="upload-icon">📦</div>
+                    <div class="upload-text">Click to select ZIP</div>
+                    <div class="upload-subtext">or drag and drop</div>
+                </div>
+                <input type="file" id="import-file-input" accept=".zip,application/zip,application/x-zip-compressed">
+
+                <div style="margin-top: 1rem;">
+                    <div class="panel-title">Selected File</div>
+                    <div class="file-list" id="import-file-list"></div>
+                </div>
+
+                <div style="margin-top: auto; padding-top: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Archive Password</label>
+                        <input type="password" id="import-password" placeholder="Enter password">
+                    </div>
+                    <button class="btn" style="width: 100%;" id="import-btn">
+                        🔓 Decrypt & Open
+                    </button>
+                </div>
+            </div>
+
+            <!-- Explorer Tab -->
+            <div class="tab-content" id="tab-explorer">
+                <div class="panel-title">Archive Contents</div>
+                <div class="tree-explorer" id="tree-explorer"></div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="editor-header">
+                <div class="editor-title">
+                    <span>📄</span>
+                    <span class="editor-filename" id="editor-filename">No file selected</span>
+                    <span class="unsaved-indicator hidden" id="unsaved-indicator"></span>
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary btn-small" id="save-btn" style="display: none;">Save</button>
+                    <button class="btn-secondary btn-small" id="export-btn" style="display: none;">Export ZIP</button>
+                </div>
+            </div>
+
+            <div class="editor-area">
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <div>No file selected</div>
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem;">Create or import a ZIP to get started</div>
+                </div>
+
+                <div id="text-editor-view" class="editor-view">
+                    <textarea class="editor" id="text-editor" placeholder="File content will appear here..."></textarea>
+                </div>
+
+                <div id="preview-editor-view" class="editor-view hidden">
+                    <div class="code-preview" id="code-preview"></div>
+                </div>
+
+                <div id="html-preview-view" class="editor-view hidden">
+                    <div class="html-preview" id="html-preview"></div>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <div class="status-info">
+                    <div id="status-lines">Lines: 0</div>
+                    <div id="status-chars">Chars: 0</div>
+                    <div id="status-size">Size: 0 B</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts Container -->
+    <div id="alerts-container" style="position: fixed; top: 80px; right: 20px; width: 400px; max-width: 90%; z-index: 500;"></div>
+
+    <!-- Password Modal -->
+    <div class="modal" id="password-modal">
+        <div class="modal-content">
+            <div class="modal-title">Enter Archive Password</div>
+            <div class="form-group">
+                <input type="password" id="modal-password" placeholder="Password" autofocus>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="modal-cancel">Cancel</button>
+                <button class="btn" id="modal-submit">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <script>
+        // ============================================================================
+        // STATE MANAGEMENT
+        // ============================================================================
+
+        const state = {
+            currentZip: null,
+            currentFiles: new Map(), // filename -> content
+            selectedFile: null,
+            hasChanges: false,
+            zipPassword: null,
+            isDecrypted: false
+        };
+
+        const fileTypes = {
+            text: ['.txt', '.md', '.log'],
+            code: ['.js', '.css', '.html', '.json', '.xml', '.yaml', '.py', '.java'],
+            editable: ['.txt', '.md', '.log', '.js', '.css', '.html', '.json', '.xml', '.yaml', '.py', '.java']
+        };
+
+        // ============================================================================
+        // ENCRYPTION/DECRYPTION UTILITIES
+        // ============================================================================
+
+        const CryptoUtils = {
+            // ── Internal helpers ────────────────────────────────────────────────────
+
+            _readAsArrayBuffer(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload  = (e) => resolve(e.target.result);
+                    reader.onerror = ()  => reject(new Error('Failed to read file'));
+                    reader.readAsArrayBuffer(blob);
+                });
+            },
+
+            _readAsText(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload  = (e) => resolve(e.target.result);
+                    reader.onerror = ()  => reject(new Error('Failed to read file'));
+                    reader.readAsText(blob);
+                });
+            },
+
+            // Derive a 256-bit AES key + 128-bit IV from a password using PBKDF2-SHA256.
+            // Returns { key: WordArray(256-bit), iv: WordArray(128-bit) }
+            _deriveKey(password, salt) {
+                const ITERATIONS = 100000;
+                const KEY_SIZE   = 256 / 32; // WordArray words for 256-bit key
+                const IV_SIZE    = 128 / 32; // WordArray words for 128-bit IV
+
+                // Derive 384 bits total: first 256 = key, last 128 = IV
+                const derived = CryptoJS.PBKDF2(password, salt, {
+                    keySize:    KEY_SIZE + IV_SIZE,
+                    iterations: ITERATIONS,
+                    hasher:     CryptoJS.algo.SHA256
+                });
+
+                const key = CryptoJS.lib.WordArray.create(derived.words.slice(0, KEY_SIZE));
+                const iv  = CryptoJS.lib.WordArray.create(derived.words.slice(KEY_SIZE));
+                return { key, iv };
+            },
+
+            // ── Public API ──────────────────────────────────────────────────────────
+
+            // Encrypt a ZIP blob with a password.
+            //
+            // Security properties:
+            //   • Key derivation : PBKDF2-SHA256, 100 000 iterations, 128-bit random salt
+            //   • Cipher         : AES-256-CBC
+            //   • IV             : derived from PBKDF2 (unique per salt)
+            //   • Integrity      : none (AES-CBC is encrypt-only; tampered files will
+            //                      fail to decrypt or produce corrupt ZIP bytes)
+            //
+            // Output format (Base64-encoded JSON stored as plain text):
+            //   { v: 2, salt: "<hex>", ct: "<base64 ciphertext>" }
+            async encryptZip(zipBlob, password) {
+                const arrayBuffer = await this._readAsArrayBuffer(zipBlob);
+                const uint8       = new Uint8Array(arrayBuffer);
+
+                // Binary → Base64 (chunked to avoid stack overflow on large files)
+                const CHUNK  = 8192;
+                let binary   = '';
+                for (let i = 0; i < uint8.length; i += CHUNK) {
+                    binary += String.fromCharCode.apply(null, uint8.subarray(i, i + CHUNK));
+                }
+                const base64Zip = btoa(binary);
+
+                // Fresh 128-bit random salt every encryption
+                const salt = CryptoJS.lib.WordArray.random(16);
+                const { key, iv } = this._deriveKey(password, salt);
+
+                const encrypted = CryptoJS.AES.encrypt(base64Zip, key, { iv });
+
+                const payload = JSON.stringify({
+                    v:    2,                            // format version
+                    salt: salt.toString(),              // hex salt
+                    ct:   encrypted.ciphertext.toString(CryptoJS.enc.Base64)
+                });
+
+                return new Blob([payload], { type: 'text/plain' });
+            },
+
+            // Decrypt a blob produced by encryptZip.
+            // Returns an ArrayBuffer containing the original ZIP bytes.
+            async decryptZip(encryptedBlob, password) {
+                const text = await this._readAsText(encryptedBlob);
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Invalid file format');
+                }
+
+                if (!parsed.v || parsed.v !== 2 || !parsed.salt || !parsed.ct) {
+                    throw new Error('Invalid or outdated file format');
+                }
+
+                const salt = CryptoJS.enc.Hex.parse(parsed.salt);
+                const { key, iv } = this._deriveKey(password, salt);
+
+                let decrypted;
+                try {
+                    const cipherParams = CryptoJS.lib.CipherParams.create({
+                        ciphertext: CryptoJS.enc.Base64.parse(parsed.ct)
+                    });
+                    decrypted = CryptoJS.AES.decrypt(cipherParams, key, { iv });
+                } catch (e) {
+                    throw new Error('Wrong password or corrupted file');
+                }
+
+                let base64Zip;
+                try {
+                    base64Zip = decrypted.toString(CryptoJS.enc.Utf8);
+                } catch (e) {
+                    throw new Error('Wrong password or corrupted file');
+                }
+
+                if (!base64Zip) {
+                    throw new Error('Wrong password or corrupted file');
+                }
+
+                let binaryString;
+                try {
+                    binaryString = atob(base64Zip);
+                } catch (e) {
+                    throw new Error('Wrong password or corrupted file');
+                }
+
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+        };
+
+        // ============================================================================
+        // ZIP PROCESSOR MODULE
+        // ============================================================================
+
+        const ZipProcessor = {
+            async createZip(files) {
+                const zip = new JSZip();
+
+                for (const file of files) {
+                    if (file.type === 'folder') {
+                        zip.folder(file.name);
+                    } else {
+                        zip.file(file.name, file.data);
+                    }
+                }
+
+                return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+            },
+
+            async readZip(zipBlob) {
+                const zip = new JSZip();
+                await zip.loadAsync(zipBlob);
+                return zip;
+            },
+
+            async extractFiles(zip) {
+                const files = new Map();
+                const promises = [];
+
+                zip.forEach((relativePath, file) => {
+                    if (!file.dir) {
+                        promises.push(
+                            file.async('string').then(content => {
+                                files.set(relativePath, content);
+                            }).catch(() => {
+                                // Handle binary files
+                                promises.push(
+                                    file.async('arraybuffer').then(content => {
+                                        files.set(relativePath, content);
+                                    })
+                                );
+                            })
+                        );
+                    }
+                });
+
+                await Promise.all(promises);
+                return files;
+            },
+
+            async buildZip(files) {
+                const zip = new JSZip();
+
+                for (const [path, content] of files.entries()) {
+                    zip.file(path, content);
+                }
+
+                return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+            },
+
+            buildTreeStructure(files) {
+                const tree = {};
+
+                for (const filePath of files.keys()) {
+                    const parts = filePath.split('/');
+                    let current = tree;
+
+                    for (let i = 0; i < parts.length; i++) {
+                        const part = parts[i];
+                        if (i === parts.length - 1) {
+                            current[part] = { type: 'file', path: filePath };
+                        } else {
+                            if (!current[part]) {
+                                current[part] = { type: 'folder', children: {} };
+                            }
+                            current = current[part].children || current[part];
+                        }
+                    }
+                }
+
+                return tree;
+            }
+        };
+
+        // ============================================================================
+        // UI UTILITIES
+        // ============================================================================
+
+        const UI = {
+            showAlert(message, type = 'success', duration = 3000) {
+                const alertsContainer = document.getElementById('alerts-container');
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type}`;
+                alert.innerHTML = `
+                    <span>${message}</span>
+                    <button class="alert-close">×</button>
+                `;
+
+                alert.querySelector('.alert-close').addEventListener('click', () => {
+                    alert.remove();
+                });
+
+                alertsContainer.appendChild(alert);
+
+                if (duration) {
+                    setTimeout(() => alert.remove(), duration);
+                }
+            },
+
+            updateStatus(text) {
+                document.getElementById('status-text').textContent = text;
+            },
+
+            enableTab(tabName) {
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+
+                document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+                document.getElementById(`tab-${tabName}`).classList.add('active');
+            },
+
+            clearFileList(containerId) {
+                const element = document.getElementById(containerId);
+                if (element) {
+                    element.innerHTML = '';
+                }
+            },
+
+            addFileToList(containerId, name, size = 0, onRemove = null) {
+                const fileList = document.getElementById(containerId);
+                if (!fileList) {
+                    console.warn(`File list container not found: ${containerId}`);
+                    return;
+                }
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.dataset.filename = name;
+
+                const icon = this.getFileIcon(name);
+                const sizeText = size > 0 ? ` (${this.formatFileSize(size)})` : '';
+
+                item.innerHTML = `
+                    <div class="file-item-name">
+                        <span class="file-item-icon">${icon}</span>
+                        <span class="file-item-text">${name}</span>
+                    </div>
+                    ${onRemove ? `<button class="file-item-remove">×</button>` : ''}
+                `;
+
+                if (onRemove) {
+                    item.querySelector('.file-item-remove').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        onRemove(name);
+                        item.remove();
+                    });
+                }
+
+                fileList.appendChild(item);
+            },
+
+            getFileIcon(filename) {
+                const ext = filename.toLowerCase().split('.').pop();
+                const icons = {
+                    'txt': '📝',
+                    'md': '📄',
+                    'js': '⚙️',
+                    'html': '🌐',
+                    'css': '🎨',
+                    'json': '{}',
+                    'py': '🐍',
+                    'java': '☕',
+                    'xml': '📦',
+                    'yaml': '⚙️',
+                    'log': '📋',
+                    'zip': '📦'
+                };
+                return icons[ext] || '📄';
+            },
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+            },
+
+            updateEditorStats(content) {
+                const lines = content.split('\n').length;
+                const chars = content.length;
+                const bytes = new Blob([content]).size;
+
+                document.getElementById('status-lines').textContent = `Lines: ${lines}`;
+                document.getElementById('status-chars').textContent = `Chars: ${chars}`;
+                document.getElementById('status-size').textContent = `Size: ${this.formatFileSize(bytes)}`;
+            },
+
+            getPreviewType(filename) {
+                const ext = filename.toLowerCase().split('.').pop();
+                if (['.txt', '.md', '.log', '.json', '.xml', '.yaml'].includes('.' + ext)) {
+                    return 'text';
+                } else if (['.js', '.css', '.html', '.py', '.java'].includes('.' + ext)) {
+                    return 'code';
+                } else if (ext === 'html') {
+                    return 'html';
+                }
+                return 'text';
+            }
+        };
+
+        // ============================================================================
+        // FILE EXPLORER MODULE
+        // ============================================================================
+
+        const FileExplorer = {
+            renderTree(tree, parentElement = null) {
+                const container = parentElement || document.getElementById('tree-explorer');
+                container.innerHTML = '';
+
+                const renderNode = (node, name, depth = 0) => {
+                    if (node.type === 'folder') {
+                        const nodeDiv = document.createElement('div');
+                        nodeDiv.className = 'tree-node';
+
+                        const label = document.createElement('div');
+                        label.className = 'tree-label';
+                        label.style.paddingLeft = depth * 20 + 'px';
+                        label.innerHTML = `
+                            <button class="tree-toggle">▶</button>
+                            <span class="tree-icon">📁</span>
+                            <span>${name}</span>
+                        `;
+
+                        const children = document.createElement('div');
+                        children.className = 'tree-children';
+
+                        const toggle = label.querySelector('.tree-toggle');
+                        toggle.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            children.classList.toggle('open');
+                            toggle.textContent = children.classList.contains('open') ? '▼' : '▶';
+                        });
+
+                        nodeDiv.appendChild(label);
+                        nodeDiv.appendChild(children);
+
+                        for (const [childName, childNode] of Object.entries(node.children || {})) {
+                            renderNode(childNode, childName, depth + 1);
+                        }
+
+                        if (parentElement === null && depth === 0) {
+                            container.appendChild(nodeDiv);
+                        } else {
+                            children.appendChild(nodeDiv);
+                        }
+                    } else {
+                        const nodeDiv = document.createElement('div');
+                        nodeDiv.className = 'tree-node';
+
+                        const label = document.createElement('div');
+                        label.className = 'tree-label';
+                        label.style.paddingLeft = depth * 20 + 'px';
+                        label.innerHTML = `
+                            <span style="width: 20px;"></span>
+                            <span class="tree-icon">${UI.getFileIcon(name)}</span>
+                            <span>${name}</span>
+                        `;
+
+                        label.addEventListener('click', () => {
+                            document.querySelectorAll('.tree-label').forEach(l => l.classList.remove('selected'));
+                            label.classList.add('selected');
+                            FileEditor.loadFile(node.path);
+                            // On mobile, close the panel so the editor is visible
+                            if (window.innerWidth <= 1024) {
+                                document.getElementById('left-panel').classList.remove('mobile-active');
+                                document.getElementById('mobile-backdrop').classList.remove('active');
+                                document.body.style.overflow = '';
+                            }
+                        });
+
+                        nodeDiv.appendChild(label);
+
+                        if (parentElement === null && depth === 0) {
+                            container.appendChild(nodeDiv);
+                        } else {
+                            // Find parent and add to its children
+                            const parent = nodeDiv.parentElement;
+                            if (parent) parent.appendChild(nodeDiv);
+                        }
+                    }
+                };
+
+                for (const [name, node] of Object.entries(tree)) {
+                    renderNode(node, name);
+                }
+            }
+        };
+
+        // ============================================================================
+        // FILE EDITOR MODULE
+        // ============================================================================
+
+        const FileEditor = {
+            loadFile(filePath) {
+                const content = state.currentFiles.get(filePath);
+                if (content === undefined) {
+                    UI.showAlert('File not found', 'error');
+                    return;
+                }
+
+                state.selectedFile = filePath;
+                state.hasChanges = false;
+
+                // Update filename
+                document.getElementById('editor-filename').textContent = filePath.split('/').pop();
+                document.getElementById('unsaved-indicator').classList.add('hidden');
+                document.getElementById('save-btn').style.display = 'none';
+                document.getElementById('export-btn').style.display = 'inline-block';
+
+                // Show appropriate editor
+                const previewType = UI.getPreviewType(filePath);
+                document.getElementById('text-editor-view').classList.add('hidden');
+                document.getElementById('preview-editor-view').classList.add('hidden');
+                document.getElementById('html-preview-view').classList.add('hidden');
+                document.getElementById('empty-state').classList.add('hidden');
+
+                if (previewType === 'code') {
+                    const codePreview = document.getElementById('code-preview');
+                    codePreview.innerHTML = '';
+                    const pre = document.createElement('pre');
+                    const code = document.createElement('code');
+                    code.textContent = content;
+                    code.className = 'language-' + filePath.split('.').pop();
+                    pre.appendChild(code);
+                    codePreview.appendChild(pre);
+
+                    try {
+                        hljs.highlightElement(code);
+                    } catch (e) {
+                        console.log('Syntax highlight unavailable');
+                    }
+
+                    document.getElementById('preview-editor-view').classList.remove('hidden');
+                } else if (previewType === 'html') {
+                    const htmlPreview = document.getElementById('html-preview');
+                    const iframe = document.createElement('iframe');
+                    iframe.style.width = '100%';
+                    iframe.style.height = '100%';
+                    iframe.style.border = 'none';
+                    htmlPreview.innerHTML = '';
+                    htmlPreview.appendChild(iframe);
+                    iframe.srcdoc = content;
+                } else {
+                    const editor = document.getElementById('text-editor');
+                    editor.value = content;
+                    editor.focus();
+                    UI.updateEditorStats(content);
+                    document.getElementById('text-editor-view').classList.remove('hidden');
+                }
+            },
+
+            saveFile() {
+                if (!state.selectedFile) return;
+
+                const content = document.getElementById('text-editor').value;
+                state.currentFiles.set(state.selectedFile, content);
+                state.hasChanges = true;
+
+                document.getElementById('unsaved-indicator').classList.add('hidden');
+                UI.showAlert('File saved in memory', 'success');
+            }
+        };
+
+        // ============================================================================
+        // CREATE ZIP WORKFLOW
+        // ============================================================================
+
+        const createPanel = {
+            selectedFiles: new Map(),
+
+            init() {
+                const uploadArea = document.getElementById('create-upload-area');
+                const fileInput = document.getElementById('create-file-input');
+                const createBtn = document.getElementById('create-btn');
+                const passwordInput = document.getElementById('create-password');
+
+                ['dragover', 'dragenter'].forEach(event => {
+                    uploadArea.addEventListener(event, (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.add('dragover');
+                    });
+                });
+
+                ['dragleave', 'drop'].forEach(event => {
+                    uploadArea.addEventListener(event, (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                    });
+                });
+
+                uploadArea.addEventListener('drop', (e) => {
+                    const files = e.dataTransfer.files;
+                    this.handleFiles(files, true); // true = accumulate files
+                });
+
+                uploadArea.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', (e) => {
+                    this.handleFiles(e.target.files, false); // false = replace files
+                });
+
+                createBtn.addEventListener('click', () => this.createZip());
+            },
+
+            handleFiles(files, accumulate = false) {
+                // If accumulate is false (from file input), clear previous files
+                if (!accumulate) {
+                    UI.clearFileList('create-file-list');
+                    this.selectedFiles.clear();
+                }
+
+                for (const file of files) {
+                    this.selectedFiles.set(file.name, file);
+                    UI.addFileToList('create-file-list', file.name, file.size, (name) => {
+                        this.selectedFiles.delete(name);
+                        // Update count when file is removed
+                        UI.updateStatus(`${this.selectedFiles.size} files selected`);
+                    });
+                }
+
+                UI.updateStatus(`${this.selectedFiles.size} files selected`);
+            },
+
+            async createZip() {
+                if (this.selectedFiles.size === 0) {
+                    UI.showAlert('Please select files', 'warning');
+                    return;
+                }
+
+                const password = document.getElementById('create-password').value;
+                if (!password) {
+                    UI.showAlert('Please enter a password', 'warning');
+                    return;
+                }
+
+                UI.updateStatus('Compressing...');
+
+                try {
+                    const files = Array.from(this.selectedFiles.values()).map(f => ({
+                        name: f.name,
+                        data: f,
+                        type: 'file'
+                    }));
+
+                    const zipBlob = await ZipProcessor.createZip(files);
+                    UI.updateStatus('Encrypting (this may take a moment)...');
+                    const encryptedBlob = await CryptoUtils.encryptZip(zipBlob, password);
+
+                    const url = URL.createObjectURL(encryptedBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `archive_${new Date().getTime()}.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    UI.showAlert('ZIP created and encrypted successfully!', 'success');
+                    UI.updateStatus('ZIP downloaded');
+                    this.selectedFiles.clear();
+                    UI.clearFileList('create-file-list');
+                    document.getElementById('create-password').value = '';
+                    document.getElementById('create-file-input').value = '';
+                } catch (error) {
+                    UI.showAlert(`Error: ${error.message}`, 'error');
+                    UI.updateStatus('Error creating ZIP');
+                }
+            }
+        };
+
+        // ============================================================================
+        // IMPORT ZIP WORKFLOW
+        // ============================================================================
+
+        const importPanel = {
+            selectedFile: null,
+
+            init() {
+                const uploadArea = document.getElementById('import-upload-area');
+                const fileInput = document.getElementById('import-file-input');
+                const importBtn = document.getElementById('import-btn');
+
+                ['dragover', 'dragenter'].forEach(event => {
+                    uploadArea.addEventListener(event, (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.add('dragover');
+                    });
+                });
+
+                ['dragleave', 'drop'].forEach(event => {
+                    uploadArea.addEventListener(event, (e) => {
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                    });
+                });
+
+                uploadArea.addEventListener('drop', (e) => {
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.selectedFile = files[0];
+                        UI.clearFileList('import-file-list');
+                        UI.addFileToList('import-file-list', files[0].name, files[0].size);
+                    }
+                });
+
+                uploadArea.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.selectedFile = e.target.files[0];
+                        UI.clearFileList('import-file-list');
+                        UI.addFileToList('import-file-list', e.target.files[0].name, e.target.files[0].size);
+                    }
+                });
+
+                importBtn.addEventListener('click', () => this.importZip());
+            },
+
+            async importZip() {
+                if (!this.selectedFile) {
+                    UI.showAlert('Please select a ZIP file', 'warning');
+                    return;
+                }
+
+                const password = document.getElementById('import-password').value;
+                if (!password) {
+                    UI.showAlert('Please enter a password', 'warning');
+                    return;
+                }
+
+                UI.updateStatus('Decrypting (this may take a moment)...');
+
+                try {
+                    const arrayBuffer = await CryptoUtils.decryptZip(this.selectedFile, password);
+                    UI.updateStatus('Reading archive...');
+                    const zip = await ZipProcessor.readZip(new Blob([arrayBuffer]));
+                    const files = await ZipProcessor.extractFiles(zip);
+
+                    state.currentZip = zip;
+                    state.currentFiles = files;
+                    state.zipPassword = password;
+                    state.isDecrypted = true;
+
+                    const tree = ZipProcessor.buildTreeStructure(files);
+                    FileExplorer.renderTree(tree);
+
+                    UI.showAlert('ZIP decrypted successfully!', 'success');
+                    UI.updateStatus('ZIP loaded');
+                    UI.enableTab('explorer');
+
+                    // On mobile, slide the panel open so the user sees the file tree
+                    if (window.innerWidth <= 1024) {
+                        const leftPanel = document.getElementById('left-panel');
+                        const backdrop  = document.getElementById('mobile-backdrop');
+                        leftPanel.classList.add('mobile-active');
+                        backdrop.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    }
+
+                    // Clear import form
+                    document.getElementById('import-password').value = '';
+                    document.getElementById('import-file-input').value = '';
+                } catch (error) {
+                    UI.showAlert(`Error: ${error.message}`, 'error');
+                    UI.updateStatus('Error importing ZIP');
+                }
+            }
+        };
+
+        // ============================================================================
+        // EVENT LISTENERS
+        // ============================================================================
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                UI.enableTab(tabName);
+            });
+        });
+
+        // Text editor changes
+        document.getElementById('text-editor').addEventListener('input', (e) => {
+            if (state.selectedFile) {
+                state.hasChanges = true;
+                document.getElementById('unsaved-indicator').classList.remove('hidden');
+                document.getElementById('save-btn').style.display = 'inline-block';
+                UI.updateEditorStats(e.target.value);
+            }
+        });
+
+        // Save file
+        document.getElementById('save-btn').addEventListener('click', () => {
+            FileEditor.saveFile();
+        });
+
+        // Export ZIP
+        document.getElementById('export-btn').addEventListener('click', async () => {
+            if (!state.selectedFile) {
+                UI.showAlert('No file to export', 'warning');
+                return;
+            }
+
+            // Save current file if editing
+            const editor = document.getElementById('text-editor');
+            if (!editor.classList.contains('hidden') && state.hasChanges) {
+                FileEditor.saveFile();
+            }
+
+            UI.updateStatus('Compressing...');
+
+            try {
+                const zipBlob = await ZipProcessor.buildZip(state.currentFiles);
+                UI.updateStatus('Encrypting (this may take a moment)...');
+                const encryptedBlob = await CryptoUtils.encryptZip(zipBlob, state.zipPassword);
+
+                const url = URL.createObjectURL(encryptedBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `archive_modified_${new Date().getTime()}.zip`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                UI.showAlert('ZIP exported successfully!', 'success');
+                UI.updateStatus('ZIP exported');
+            } catch (error) {
+                UI.showAlert(`Error: ${error.message}`, 'error');
+                UI.updateStatus('Error exporting ZIP');
+            }
+        });
+
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createPanel.init();
+            importPanel.init();
+
+            // ── Mobile panel open/close ──────────────────────────────────────────
+            const leftPanel   = document.getElementById('left-panel');
+            const backdrop    = document.getElementById('mobile-backdrop');
+            const menuBtn     = document.getElementById('mobile-menu-btn');
+            const closeBtn    = document.getElementById('panel-close-btn');
+
+            function openPanel() {
+                leftPanel.classList.add('mobile-active');
+                backdrop.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closePanel() {
+                leftPanel.classList.remove('mobile-active');
+                backdrop.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            menuBtn.addEventListener('click', openPanel);
+            closeBtn.addEventListener('click', closePanel);
+            backdrop.addEventListener('click', closePanel);
+
+            UI.updateStatus('Ready');
+        });
+    </script>
+</body>
+</html>
