@@ -839,6 +839,7 @@
                 <div style="margin-top: 1rem;">
                     <div class="panel-title">Selected Files</div>
                     <div class="file-list" id="create-file-list"></div>
+                    <button class="btn-secondary btn-small" id="create-new-file-btn" style="margin-top:0.5rem;width:100%;">+ New file</button>
                 </div>
 
                 <div style="margin-top: auto; padding-top: 1rem;">
@@ -879,7 +880,10 @@
 
             <!-- Explorer Tab -->
             <div class="tab-content" id="tab-explorer">
-                <div class="panel-title">Archive Contents</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1.5rem;border-bottom:1px solid var(--border);">
+                    <span style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);">Archive Contents</span>
+                    <button class="btn-secondary btn-small" id="explorer-new-file-btn">+ New file</button>
+                </div>
                 <div class="tree-explorer" id="tree-explorer"></div>
             </div>
         </div>
@@ -941,6 +945,21 @@
             <div class="modal-actions">
                 <button class="btn-secondary" id="modal-cancel">Cancel</button>
                 <button class="btn" id="modal-submit">Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New File Modal -->
+    <div class="modal" id="new-file-modal">
+        <div class="modal-content">
+            <div class="modal-title">New File</div>
+            <div class="form-group">
+                <label class="form-label">Filename</label>
+                <input type="text" id="new-file-name" placeholder="e.g. notes.md" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="new-file-cancel">Cancel</button>
+                <button class="btn" id="new-file-confirm">Create</button>
             </div>
         </div>
     </div>
@@ -1083,6 +1102,11 @@
                     throw new Error('Wrong password or corrupted file');
                 }
 
+                // Guard: CryptoJS returns a WordArray with null/zero sigBytes on wrong password
+                if (!decrypted || !decrypted.sigBytes || decrypted.sigBytes <= 0) {
+                    throw new Error('Wrong password or corrupted file');
+                }
+
                 let base64Zip;
                 try {
                     base64Zip = decrypted.toString(CryptoJS.enc.Utf8);
@@ -1090,7 +1114,7 @@
                     throw new Error('Wrong password or corrupted file');
                 }
 
-                if (!base64Zip) {
+                if (!base64Zip || base64Zip.length === 0) {
                     throw new Error('Wrong password or corrupted file');
                 }
 
@@ -1301,13 +1325,18 @@
             },
 
             updateEditorStats(content) {
+                if (typeof content !== 'string') {
+                    document.getElementById('status-lines').textContent = 'Lines: —';
+                    document.getElementById('status-chars').textContent = 'Chars: —';
+                    document.getElementById('status-size').textContent  = 'Size: —';
+                    return;
+                }
                 const lines = content.split('\n').length;
                 const chars = content.length;
                 const bytes = new Blob([content]).size;
-
                 document.getElementById('status-lines').textContent = `Lines: ${lines}`;
                 document.getElementById('status-chars').textContent = `Chars: ${chars}`;
-                document.getElementById('status-size').textContent = `Size: ${this.formatFileSize(bytes)}`;
+                document.getElementById('status-size').textContent  = `Size: ${this.formatFileSize(bytes)}`;
             },
 
             getPreviewType(filename) {
@@ -1432,39 +1461,56 @@
                 document.getElementById('save-btn').style.display = 'none';
                 document.getElementById('export-btn').style.display = 'inline-block';
 
-                // Show appropriate editor
-                const previewType = UI.getPreviewType(filePath);
+                // Hide all views
                 document.getElementById('text-editor-view').classList.add('hidden');
                 document.getElementById('preview-editor-view').classList.add('hidden');
                 document.getElementById('html-preview-view').classList.add('hidden');
                 document.getElementById('empty-state').classList.add('hidden');
 
+                // Binary files (ArrayBuffer) — show a read-only notice, not editable
+                const isBinary = content instanceof ArrayBuffer;
+                if (isBinary) {
+                    const codePreview = document.getElementById('code-preview');
+                    codePreview.innerHTML = '';
+                    const notice = document.createElement('div');
+                    notice.style.cssText = 'padding:2rem;color:var(--text-muted);font-size:0.875rem;';
+                    const ext = filePath.split('.').pop().toUpperCase();
+                    const kb  = (content.byteLength / 1024).toFixed(1);
+                    notice.textContent = `Binary file (${ext}, ${kb} KB) — preview not available.`;
+                    codePreview.appendChild(notice);
+                    document.getElementById('preview-editor-view').classList.remove('hidden');
+
+                    // Update status bar with byte size only
+                    document.getElementById('status-lines').textContent = 'Lines: —';
+                    document.getElementById('status-chars').textContent = 'Chars: —';
+                    document.getElementById('status-size').textContent  = `Size: ${UI.formatFileSize(content.byteLength)}`;
+                    return;
+                }
+
+                // Text content — pick editor view
+                const previewType = UI.getPreviewType(filePath);
+
                 if (previewType === 'code') {
                     const codePreview = document.getElementById('code-preview');
                     codePreview.innerHTML = '';
-                    const pre = document.createElement('pre');
+                    const pre  = document.createElement('pre');
                     const code = document.createElement('code');
                     code.textContent = content;
-                    code.className = 'language-' + filePath.split('.').pop();
+                    code.className   = 'language-' + filePath.split('.').pop();
                     pre.appendChild(code);
                     codePreview.appendChild(pre);
-
-                    try {
-                        hljs.highlightElement(code);
-                    } catch (e) {
-                        console.log('Syntax highlight unavailable');
-                    }
-
+                    try { hljs.highlightElement(code); } catch (e) {}
                     document.getElementById('preview-editor-view').classList.remove('hidden');
+                    UI.updateEditorStats(content);
                 } else if (previewType === 'html') {
                     const htmlPreview = document.getElementById('html-preview');
                     const iframe = document.createElement('iframe');
-                    iframe.style.width = '100%';
-                    iframe.style.height = '100%';
-                    iframe.style.border = 'none';
+                    iframe.style.cssText = 'width:100%;height:100%;border:none;';
                     htmlPreview.innerHTML = '';
                     htmlPreview.appendChild(iframe);
                     iframe.srcdoc = content;
+                    document.getElementById('html-preview-view').classList.remove('hidden');
+                    UI.updateEditorStats(content);
                 } else {
                     const editor = document.getElementById('text-editor');
                     editor.value = content;
@@ -1477,12 +1523,20 @@
             saveFile() {
                 if (!state.selectedFile) return;
 
+                // Don't overwrite binary files
+                const existing = state.currentFiles.get(state.selectedFile);
+                if (existing instanceof ArrayBuffer) {
+                    UI.showAlert('Binary files cannot be edited', 'warning');
+                    return;
+                }
+
                 const content = document.getElementById('text-editor').value;
                 state.currentFiles.set(state.selectedFile, content);
-                state.hasChanges = true;
+                state.hasChanges = false;
 
                 document.getElementById('unsaved-indicator').classList.add('hidden');
-                UI.showAlert('File saved in memory', 'success');
+                document.getElementById('save-btn').style.display = 'none';
+                UI.showAlert('File saved', 'success');
             }
         };
 
@@ -1557,14 +1611,26 @@
                     return;
                 }
 
+                // Save any open editor content back before building
+                if (state.selectedFile && state.currentFiles.has(state.selectedFile)) {
+                    const editorEl = document.getElementById('text-editor');
+                    if (!document.getElementById('text-editor-view').classList.contains('hidden')) {
+                        state.currentFiles.set(state.selectedFile, editorEl.value);
+                    }
+                }
+
                 UI.updateStatus('Compressing...');
 
                 try {
-                    const files = Array.from(this.selectedFiles.values()).map(f => ({
-                        name: f.name,
-                        data: f,
-                        type: 'file'
-                    }));
+                    // Build file list, preferring in-memory content for newly created files
+                    const files = Array.from(this.selectedFiles.values()).map(f => {
+                        const inMemory = state.currentFiles.get(f.name);
+                        if (inMemory !== undefined) {
+                            // Use the edited content instead of the original blank File object
+                            return { name: f.name, data: new Blob([inMemory], { type: 'text/plain' }), type: 'file' };
+                        }
+                        return { name: f.name, data: f, type: 'file' };
+                    });
 
                     const zipBlob = await ZipProcessor.createZip(files);
                     UI.updateStatus('Encrypting (this may take a moment)...');
@@ -1580,9 +1646,16 @@
                     UI.showAlert('ZIP created and encrypted successfully!', 'success');
                     UI.updateStatus('ZIP downloaded');
                     this.selectedFiles.clear();
+                    state.currentFiles.clear();
+                    state.selectedFile = null;
                     UI.clearFileList('create-file-list');
                     document.getElementById('create-password').value = '';
                     document.getElementById('create-file-input').value = '';
+                    document.getElementById('export-btn').style.display = 'none';
+                    document.getElementById('save-btn').style.display = 'none';
+                    document.getElementById('editor-filename').textContent = 'No file selected';
+                    document.getElementById('text-editor-view').classList.add('hidden');
+                    document.getElementById('empty-state').classList.remove('hidden');
                 } catch (error) {
                     UI.showAlert(`Error: ${error.message}`, 'error');
                     UI.updateStatus('Error creating ZIP');
@@ -1689,6 +1762,128 @@
         };
 
         // ============================================================================
+        // NEW FILE MODULE
+        // ============================================================================
+
+        const NewFileManager = {
+            // Who triggered the modal: 'create' (Create tab) or 'explorer' (Explorer tab)
+            _origin: null,
+
+            open(origin) {
+                this._origin = origin;
+                const modal = document.getElementById('new-file-modal');
+                const input = document.getElementById('new-file-name');
+                input.value = '';
+                modal.classList.add('active');
+                // Focus after the transition frame
+                requestAnimationFrame(() => input.focus());
+            },
+
+            close() {
+                document.getElementById('new-file-modal').classList.remove('active');
+                this._origin = null;
+            },
+
+            confirm() {
+                const raw = document.getElementById('new-file-name').value.trim();
+                if (!raw) {
+                    UI.showAlert('Please enter a filename', 'warning');
+                    return;
+                }
+                // Sanitise: no slashes or backslashes (root-only requirement)
+                const filename = raw.replace(/[/\\]/g, '_');
+
+                if (this._origin === 'explorer') {
+                    this._addToExplorer(filename);
+                } else {
+                    this._addToCreate(filename);
+                }
+                this.close();
+            },
+
+            // Add new empty file into an already-open ZIP (Explorer context)
+            _addToExplorer(filename) {
+                if (state.currentFiles.has(filename)) {
+                    UI.showAlert(`"${filename}" already exists`, 'warning');
+                    return;
+                }
+                state.currentFiles.set(filename, '');
+
+                // Rebuild the tree so the new file appears
+                const tree = ZipProcessor.buildTreeStructure(state.currentFiles);
+                FileExplorer.renderTree(tree);
+
+                // Open the new file immediately in the editor
+                FileEditor.loadFile(filename);
+
+                // Make sure Export button is visible
+                document.getElementById('export-btn').style.display = 'inline-block';
+
+                UI.showAlert(`"${filename}" created`, 'success');
+                UI.updateStatus('New file created');
+            },
+
+            // Add new empty file to the Create tab's pending file list
+            _addToCreate(filename) {
+                // We need a File-like object; create a Blob and attach a name
+                const blob = new Blob([''], { type: 'text/plain' });
+                const file = new File([blob], filename, { type: 'text/plain' });
+
+                createPanel.selectedFiles.set(filename, file);
+                UI.addFileToList('create-file-list', filename, 0, (name) => {
+                    createPanel.selectedFiles.delete(name);
+                    UI.updateStatus(`${createPanel.selectedFiles.size} files selected`);
+                });
+
+                // Also open it in the editor so the user can write content right away.
+                // We store it in a temporary in-memory map keyed by name.
+                state.currentFiles.set(filename, '');
+                state.zipPassword = state.zipPassword || null;
+                FileEditor.loadFile(filename);
+
+                // Show Export button so user can ZIP even without importing first
+                document.getElementById('export-btn').style.display = 'inline-block';
+
+                UI.showAlert(`"${filename}" created — write content then Create ZIP`, 'success');
+                UI.updateStatus('New file ready to edit');
+            }
+        };
+
+        // ============================================================================
+        // PASSWORD PROMPT HELPER
+        // ============================================================================
+
+        const PasswordPrompt = {
+            _callback: null,
+
+            request(title, callback) {
+                this._callback = callback;
+                document.querySelector('#password-modal .modal-title').textContent = title;
+                document.getElementById('modal-password').value = '';
+                document.getElementById('password-modal').classList.add('active');
+                requestAnimationFrame(() => document.getElementById('modal-password').focus());
+            },
+
+            confirm() {
+                const password = document.getElementById('modal-password').value;
+                if (!password) {
+                    UI.showAlert('Please enter a password', 'warning');
+                    return;
+                }
+                document.getElementById('password-modal').classList.remove('active');
+                if (this._callback) {
+                    this._callback(password);
+                    this._callback = null;
+                }
+            },
+
+            cancel() {
+                document.getElementById('password-modal').classList.remove('active');
+                this._callback = null;
+            }
+        };
+
+        // ============================================================================
         // EVENT LISTENERS
         // ============================================================================
 
@@ -1698,6 +1893,24 @@
                 const tabName = tab.dataset.tab;
                 UI.enableTab(tabName);
             });
+        });
+
+        // New file — Create tab
+        document.getElementById('create-new-file-btn').addEventListener('click', () => {
+            NewFileManager.open('create');
+        });
+
+        // New file — Explorer tab
+        document.getElementById('explorer-new-file-btn').addEventListener('click', () => {
+            NewFileManager.open('explorer');
+        });
+
+        // New file modal buttons
+        document.getElementById('new-file-confirm').addEventListener('click', () => NewFileManager.confirm());
+        document.getElementById('new-file-cancel').addEventListener('click',  () => NewFileManager.close());
+        document.getElementById('new-file-name').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') NewFileManager.confirm();
+            if (e.key === 'Escape') NewFileManager.close();
         });
 
         // Text editor changes
@@ -1717,28 +1930,42 @@
 
         // Export ZIP
         document.getElementById('export-btn').addEventListener('click', async () => {
-            if (!state.selectedFile) {
-                UI.showAlert('No file to export', 'warning');
+            if (state.currentFiles.size === 0) {
+                UI.showAlert('Nothing to export', 'warning');
                 return;
             }
 
-            // Save current file if editing
-            const editor = document.getElementById('text-editor');
-            if (!editor.classList.contains('hidden') && state.hasChanges) {
-                FileEditor.saveFile();
+            // Flush any unsaved editor content first
+            if (state.selectedFile) {
+                const editorView = document.getElementById('text-editor-view');
+                if (!editorView.classList.contains('hidden')) {
+                    FileEditor.saveFile();
+                }
             }
 
-            UI.updateStatus('Compressing...');
+            // If no password yet (files created from scratch), ask for one now
+            if (!state.zipPassword) {
+                PasswordPrompt.request('Set a password for this archive', (password) => {
+                    state.zipPassword = password;
+                    exportZip();
+                });
+                return;
+            }
 
+            exportZip();
+        });
+
+        async function exportZip() {
+            UI.updateStatus('Compressing...');
             try {
                 const zipBlob = await ZipProcessor.buildZip(state.currentFiles);
                 UI.updateStatus('Encrypting (this may take a moment)...');
                 const encryptedBlob = await CryptoUtils.encryptZip(zipBlob, state.zipPassword);
 
                 const url = URL.createObjectURL(encryptedBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `archive_modified_${new Date().getTime()}.zip`;
+                const a   = document.createElement('a');
+                a.href    = url;
+                a.download = `archive_${Date.now()}.zip`;
                 a.click();
                 URL.revokeObjectURL(url);
 
@@ -1748,7 +1975,7 @@
                 UI.showAlert(`Error: ${error.message}`, 'error');
                 UI.updateStatus('Error exporting ZIP');
             }
-        });
+        }
 
         // ============================================================================
         // INITIALIZATION
@@ -1757,6 +1984,14 @@
         document.addEventListener('DOMContentLoaded', () => {
             createPanel.init();
             importPanel.init();
+
+            // ── Password modal ───────────────────────────────────────────────────
+            document.getElementById('modal-submit').addEventListener('click', () => PasswordPrompt.confirm());
+            document.getElementById('modal-cancel').addEventListener('click', () => PasswordPrompt.cancel());
+            document.getElementById('modal-password').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter')  PasswordPrompt.confirm();
+                if (e.key === 'Escape') PasswordPrompt.cancel();
+            });
 
             // ── Mobile panel open/close ──────────────────────────────────────────
             const leftPanel   = document.getElementById('left-panel');
